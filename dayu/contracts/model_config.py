@@ -14,6 +14,7 @@ class RunnerType(StrEnum):
     """Runner 类型。"""
 
     OPENAI_COMPATIBLE = "openai_compatible"
+    CURSOR_SDK = "cursor_sdk"
     CLI = "cli"
 
 
@@ -138,7 +139,19 @@ class CliModelConfig(BaseModelConfig, total=False):
     reasoning_effort: str
 
 
-ModelConfig: TypeAlias = OpenAICompatibleModelConfig | CliModelConfig
+class CursorSdkModelConfig(BaseModelConfig, total=False):
+    """Cursor SDK Runner 的模型配置。"""
+
+    runner_type: Literal["cursor_sdk"]
+    api_key_env: str
+    cwd: str
+    supports_stream: bool
+    supports_tool_calling: bool
+    allowed_tool_names: list[str]
+    required_tool_names_any: list[str]
+
+
+ModelConfig: TypeAlias = OpenAICompatibleModelConfig | CursorSdkModelConfig | CliModelConfig
 
 
 class OpenAICompatibleRunnerParams(TypedDict, total=False):
@@ -170,7 +183,22 @@ class CliRunnerParams(TypedDict, total=False):
     name: str
 
 
-RunnerParams: TypeAlias = OpenAICompatibleRunnerParams | CliRunnerParams
+class CursorSdkRunnerParams(TypedDict, total=False):
+    """传给 `AsyncCursorSdkRunner` 的稳定参数。"""
+
+    model: str
+    api_key_env: str
+    cwd: str
+    timeout: int | float
+    name: str
+    temperature: float | None
+    supports_stream: bool
+    supports_tool_calling: bool
+    allowed_tool_names: list[str]
+    required_tool_names_any: list[str]
+
+
+RunnerParams: TypeAlias = OpenAICompatibleRunnerParams | CursorSdkRunnerParams | CliRunnerParams
 
 
 __all__ = [
@@ -178,6 +206,8 @@ __all__ = [
     "CliModelConfig",
     "CliRunnerParams",
     "ConversationMemoryRuntimeHints",
+    "CursorSdkModelConfig",
+    "CursorSdkRunnerParams",
     "ModelConfig",
     "ModelConfigJsonValue",
     "ModelConfigScalar",

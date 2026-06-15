@@ -163,6 +163,8 @@ Fins 当前通过两个 toolset registrar 向 Agent 路径注入工具：
 - ingestion 工具只接受 `service_factory + manager_key`；下载 job 工具按 ticker 归一化后的市场路由到同一 ingestion service factory，当前支持美股、A 股、港股，A 股/港股表单过滤使用 `FY/H1/Q1/Q2/Q3/Q4`
 - `Host` 不再从 `FinsRuntime` 拉总仓储对象，也不再持有 Agent 工具注入所需的 Fins runtime
 
+当 `prompt` / `prompt_mt` 显式选择 `cursor-auto` 时，Cursor SDK Runner 会把同一个 `ToolExecutor` 暴露为 Cursor local customTools。Fins 工具本身仍由上述 registrar 注入，执行时继续通过 `FinsToolService` 与 `dayu.fins.storage` 的窄仓储协议读取 processed 财报；Cursor 不直接读取 `workspace/portfolio` 目录，也不绕过现有权限、limits 和截断语义。
+
 ### 4.2 Prompt Contributions
 
 当前与财报对象有关的动态文本由 Service 侧公共函数生成：

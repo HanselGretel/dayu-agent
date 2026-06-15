@@ -10,10 +10,12 @@ from typing import cast
 
 from dayu.contracts.agent_execution import AgentCreateArgs
 from dayu.contracts.model_config import (
+    CursorSdkRunnerParams,
     OpenAICompatibleRunnerParams,
     RunnerType,
     ensure_runner_type_enabled,
 )
+from dayu.engine.async_cursor_sdk_runner import AsyncCursorSdkRunner
 from dayu.engine.async_openai_runner import AsyncOpenAIRunner, AsyncOpenAIRunnerRunningConfig
 from dayu.contracts.cancellation import CancellationToken
 from dayu.engine.protocols import AsyncRunner
@@ -63,6 +65,23 @@ def create_runner(
             supports_tool_calling=bool(runner_params.get("supports_tool_calling", True)),
             supports_stream_usage=bool(runner_params.get("supports_stream_usage", False)),
             running_config=_build_openai_runner_running_config(agent_create_args),
+            cancellation_token=cancellation_token,
+        )
+    if runner_type == RunnerType.CURSOR_SDK:
+        runner_params = cast(CursorSdkRunnerParams, agent_create_args.runner_params)
+        model = runner_params.get("model")
+        if model is None:
+            raise ValueError("cursor_sdk runner_params 缺少 model")
+        return AsyncCursorSdkRunner(
+            model=str(model),
+            api_key_env=str(runner_params.get("api_key_env") or "CURSOR_API_KEY"),
+            cwd=str(runner_params.get("cwd") or "."),
+            name=runner_params.get("name"),
+            timeout=float(runner_params.get("timeout", 3600)),
+            supports_stream=bool(runner_params.get("supports_stream", True)),
+            supports_tool_calling=bool(runner_params.get("supports_tool_calling", True)),
+            allowed_tool_names=tuple(runner_params.get("allowed_tool_names", [])),
+            required_tool_names_any=tuple(runner_params.get("required_tool_names_any", [])),
             cancellation_token=cancellation_token,
         )
     raise ValueError(f"不支持的 runner_type: {runner_type}")

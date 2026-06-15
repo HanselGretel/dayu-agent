@@ -23,6 +23,7 @@ from dayu.engine import (
 from dayu.engine.async_agent import AgentRunningConfig
 from dayu.contracts.cancellation import CancelledError, CancellationToken
 from dayu.engine.events import reasoning_delta
+from dayu.engine.events import runner_internal_tool_event_metadata
 from dayu.engine.tool_contracts import DupCallSpec
 
 
@@ -727,6 +728,46 @@ class TestAsyncAgentRun:
         assert None not in run_ids
         assert iteration_ids == {next(iter(iteration_ids))}
         assert None not in iteration_ids
+    
+    async def test_runner_internal_tool_events_do_not_trigger_outer_tool_loop(self):
+        """Runner 内部工具事件只观测，不应触发外层 tool batch 回填。"""
+
+        internal_metadata = runner_internal_tool_event_metadata()
+        runner = DummyRunner(
+            [[
+                tool_call_dispatched(
+                    "cursor_call_0",
+                    "lookup_filing",
+                    {"ticker": "AAPL"},
+                    index_in_iteration=0,
+                    **internal_metadata,
+                ),
+                tool_call_result(
+                    "cursor_call_0",
+                    {"ok": True, "value": {"doc_id": "fil_1"}},
+                    name="lookup_filing",
+                    arguments={"ticker": "AAPL"},
+                    index_in_iteration=0,
+                    **internal_metadata,
+                ),
+                content_complete("基于本地财报的回答"),
+                done_event({"finish_reason": "stop"}),
+            ]]
+        )
+        agent = AsyncAgent(runner)
+
+        events = []
+        async for event in agent.run("test prompt"):
+            events.append(event)
+
+        event_types = [event.type for event in events]
+        assert EventType.ERROR not in event_types
+        assert EventType.FINAL_ANSWER in event_types
+        assert EventType.TOOL_CALL_DISPATCHED in event_types
+        assert EventType.TOOL_CALL_RESULT in event_types
+        assert EventType.TOOL_CALLS_BATCH_DONE not in event_types
+        assert events[-1].data["content"] == "基于本地财报的回答"
+        assert len(runner.calls) == 1
     
     async def test_run_non_streaming(self):
         """测试非 streaming 模式"""

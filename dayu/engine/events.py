@@ -302,3 +302,59 @@ def final_answer_event(
         data=payload,
         metadata=metadata,
     )
+
+
+TOOL_LOOP_OWNER_METADATA_KEY = "tool_loop_owner"
+TOOL_LOOP_OWNER_RUNNER = "runner"
+CURSOR_CUSTOM_TOOL_METADATA_KEY = "cursor_custom_tool"
+
+
+def runner_internal_tool_event_metadata(
+    *,
+    run_id: str | None = None,
+    iteration_id: str | None = None,
+    **extra_metadata: Any,
+) -> Dict[str, Any]:
+    """构造 Runner 内部工具循环事件 metadata。
+
+    Args:
+        run_id: 外层 Agent run ID。
+        iteration_id: 外层 Agent iteration ID。
+        **extra_metadata: 额外 metadata 字段。
+
+    Returns:
+        标记工具结果已被 Runner 内部消费的事件 metadata。
+
+    Raises:
+        无。
+    """
+
+    metadata: Dict[str, Any] = {
+        TOOL_LOOP_OWNER_METADATA_KEY: TOOL_LOOP_OWNER_RUNNER,
+        CURSOR_CUSTOM_TOOL_METADATA_KEY: True,
+    }
+    if run_id:
+        metadata["run_id"] = run_id
+    if iteration_id:
+        metadata["iteration_id"] = iteration_id
+    metadata.update(extra_metadata)
+    return metadata
+
+
+def is_runner_internal_tool_event(event: StreamEvent) -> bool:
+    """判断事件是否来自 Runner 内部工具循环。
+
+    Args:
+        event: 待判定的流式事件。
+
+    Returns:
+        ``True`` 表示该工具事件已被 Runner 内部消费，外层 Agent 不应再回填。
+
+    Raises:
+        无。
+    """
+
+    metadata = event.metadata if isinstance(event.metadata, dict) else {}
+    if metadata.get(TOOL_LOOP_OWNER_METADATA_KEY) == TOOL_LOOP_OWNER_RUNNER:
+        return True
+    return metadata.get(CURSOR_CUSTOM_TOOL_METADATA_KEY) is True

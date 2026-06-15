@@ -10,6 +10,7 @@
       "deepseek-v4-pro-thinking",
       "qwen-plus-thinking",
       "ollama",
+      "cursor-auto",
       "gpt-5.4-thinking",
       "claude-sonnet-4-6-thinking",
       "gemini-2.5-flash-thinking"

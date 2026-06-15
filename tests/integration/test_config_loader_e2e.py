@@ -113,3 +113,30 @@ def test_load_llm_model_rejects_disabled_cli_runner(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="CLI runner"):
         loader.load_llm_model("legacy_cli")
+
+
+def test_load_builtin_cursor_sdk_model_and_collects_api_key_env() -> None:
+    """默认模型目录应包含 Cursor SDK 模型并收集 CURSOR_API_KEY 依赖。"""
+
+    loader = ConfigLoader(ConfigFileResolver())
+
+    model_config = loader.load_llm_model("cursor-auto")
+    referenced_env_vars = loader.collect_model_referenced_env_vars(["cursor-auto"])
+
+    assert model_config.get("runner_type") == "cursor_sdk"
+    assert model_config.get("model") == "composer-2.5"
+    assert model_config.get("api_key_env") == "CURSOR_API_KEY"
+    assert model_config.get("required_tool_names_any") == ["list_documents"]
+    assert model_config.get("allowed_tool_names") == [
+        "fetch_more",
+        "list_documents",
+        "get_document_sections",
+        "read_section",
+        "search_document",
+        "list_tables",
+        "get_table",
+        "get_page_content",
+        "get_financial_statement",
+        "query_xbrl_facts",
+    ]
+    assert "CURSOR_API_KEY" in referenced_env_vars

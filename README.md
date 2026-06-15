@@ -535,6 +535,14 @@ dayu-cli prompt "总结苹果最新财报中的主要风险" --model-name mimo-v
 dayu-cli prompt "总结苹果最新财报中的主要风险" --debug
 ```
 
+如果要使用 Cursor API Key 访问 Cursor SDK 模型，先设置 `CURSOR_API_KEY`，再显式选择内置的 `cursor-auto`：
+
+```bash
+export CURSOR_API_KEY="cursor_..."
+dayu-cli prompt "总结最新财报中的主要风险" --ticker AAPL --model-name cursor-auto
+dayu-cli prompt --label apple "继续解释现金流变化" --ticker AAPL --model-name cursor-auto
+```
+
 命令说明：
 - 使用之前请先下载/上传财报。
 - 两种写法都可以：要么在问题里直接写公司名或股票代码，要么用 `--ticker` 明确指定研究对象；一般不需要两边重复写。
@@ -1272,6 +1280,7 @@ dayu-render workspace/draft/AAPL/AAPL_qual_report.md report.html
 - `endpoint_url`：模型服务地址。
 - `model`：真正发给服务商的模型标识。
 - `headers`：鉴权和请求头，通常在这里放 API Key 占位符。
+- `api_key_env`：`runner_type=cursor_sdk` 使用的 Cursor API Key 环境变量名，内置 `cursor-auto` 使用 `CURSOR_API_KEY`。
 - `timeout`：单次请求超时时间，单位秒。
 - `supports_stream`：是否支持流式输出。
 - `supports_tool_calling`：是否支持工具调用。用于 `prompt`、`interactive`、`write` 的模型通常需要支持。

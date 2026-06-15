@@ -9,6 +9,8 @@ from dayu.contracts.agent_execution import AgentCreateArgs
 from dayu.contracts.agent_types import AgentTraceIdentity
 from dayu.contracts.model_config import (
     CliRunnerParams,
+    CursorSdkModelConfig,
+    CursorSdkRunnerParams,
     ModelConfig,
     OpenAICompatibleModelConfig,
     OpenAICompatibleRunnerParams,
@@ -146,7 +148,7 @@ def _build_runner_params(
     model_name: str,
     temperature: float | None,
     model_config: ModelConfig,
-) -> OpenAICompatibleRunnerParams | CliRunnerParams:
+) -> OpenAICompatibleRunnerParams | CursorSdkRunnerParams | CliRunnerParams:
     """构造 runner 专属参数。"""
 
     if runner_type == RunnerType.OPENAI_COMPATIBLE:
@@ -174,6 +176,24 @@ def _build_runner_params(
             "supports_stream_usage": bool(openai_model_config.get("supports_stream_usage", False)),
         }
         return openai_runner_params
+    if runner_type == RunnerType.CURSOR_SDK:
+        cursor_model_config = cast(CursorSdkModelConfig, model_config)
+        target_model = cursor_model_config.get("model")
+        if target_model is None:
+            raise ValueError("cursor_sdk model_config 缺少 model")
+        cursor_runner_params: CursorSdkRunnerParams = {
+            "model": target_model,
+            "api_key_env": cursor_model_config.get("api_key_env") or "CURSOR_API_KEY",
+            "cwd": cursor_model_config.get("cwd") or ".",
+            "timeout": cursor_model_config.get("timeout", 3600),
+            "name": cursor_model_config.get("name") or model_name,
+            "temperature": temperature,
+            "supports_stream": bool(cursor_model_config.get("supports_stream", True)),
+            "supports_tool_calling": bool(cursor_model_config.get("supports_tool_calling", True)),
+            "allowed_tool_names": list(cursor_model_config.get("allowed_tool_names", [])),
+            "required_tool_names_any": list(cursor_model_config.get("required_tool_names_any", [])),
+        }
+        return cursor_runner_params
     raise ValueError(f"不支持的 runner_type: {runner_type}")
 
 

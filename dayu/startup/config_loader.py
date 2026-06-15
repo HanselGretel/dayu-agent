@@ -100,6 +100,9 @@ def _collect_env_var_names_from_model_config_value(
     """
 
     if isinstance(value, dict):
+        raw_api_key_env = value.get("api_key_env")
+        if isinstance(raw_api_key_env, str) and raw_api_key_env.strip():
+            collected_names.add(raw_api_key_env.strip())
         for child in value.values():
             _collect_env_var_names_from_model_config_value(
                 value=cast(ModelConfig | ModelConfigJsonValue, child),

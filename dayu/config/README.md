@@ -192,11 +192,12 @@ Prompt 装配还遵循一条 Prefix Cache 导向的顺序约束：
 
 | 字段 | 含义 |
 |------|------|
-| `runner_type` | 运行器类型，当前只允许 `openai_compatible` |
+| `runner_type` | 运行器类型，当前允许 `openai_compatible` 与 `cursor_sdk` |
 | `name` | 配置名称 |
 | `endpoint_url` | API 地址 |
 | `model` | 模型 ID |
 | `headers` | HTTP 请求头，支持 `{{ENV_VAR}}` 占位符 |
+| `api_key_env` | Cursor SDK Runner 使用的 Cursor API Key 环境变量名 |
 | `timeout` | 单次模型请求总超时 |
 | `stream_idle_timeout` | 流式响应空闲读超时 |
 | `stream_idle_heartbeat_sec` | 流式响应空闲心跳日志间隔 |
@@ -205,9 +206,19 @@ Prompt 装配还遵循一条 Prefix Cache 导向的顺序约束：
 | `supports_usage` | 是否支持 usage 采集 |
 | `supports_stream_usage` | 是否支持流式 usage 采集 |
 | `max_context_tokens` | 最大上下文 token |
+| `allowed_tool_names` | Cursor SDK Runner 可暴露给 Cursor local Agent 的工具白名单；为空表示不限制 |
+| `required_tool_names_any` | Cursor SDK Runner 至少需要真实调用其中一个工具，否则拒绝输出 |
 | `extra_payloads` | Provider 扩展请求参数；禁止放入 `model`、`messages`、`temperature`、`stream`、`tools` 等显式字段 |
 
 `stream_idle_timeout` 与 `stream_idle_heartbeat_sec` 是模型级 Runner 运行时覆盖项；Service / Host 在解析 scene 时会把它们写入 `runner_running_config` 快照，最终由 OpenAI 兼容 Runner 使用。
+
+`cursor_sdk` 只用于通过 Cursor Python SDK 访问 Cursor Agent。内置 `cursor-auto` 使用 `model=透传给 Cursor SDK 的模型 ID` 与 `api_key_env=CURSOR_API_KEY`；当前默认固定为 `composer-2.5`，已加入 `prompt` 与 `prompt_mt` 的 `allowed_names`，但不会改写任何 scene 的默认模型。使用前需要在 shell 中设置：
+
+```bash
+export CURSOR_API_KEY="cursor_..."
+```
+
+内置 `cursor-auto` 面向财报问答，不作为通用联网模型使用。它默认只暴露 `fetch_more` 与 Dayu 本地财报读取/检索/表格/XBRL 工具，并通过 `required_tool_names_any=["list_documents"]` 要求 Cursor 至少触达本地文档目录；若没有真实调用该工具，Runner 会拒绝输出模型答案。
 
 ### 4.2 CLI runner 状态
 
@@ -243,6 +254,7 @@ CLI runner 已彻底禁用，不再允许通过 `llm_models.json` 配置或使�
 - `mimo-v2.5-pro-thinking-plan-sg`
 - `qwen-plus`
 - `qwen-plus-thinking`
+- `cursor-auto`
 - `ollama`
 
 ### 4.4 最小修改示例

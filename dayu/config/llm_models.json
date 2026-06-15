@@ -1393,6 +1393,61 @@
       }
     }
   },
+  "cursor-auto": {
+    "runner_type": "cursor_sdk",
+    "name": "cursor-auto",
+    "model": "composer-2.5",
+    "api_key_env": "CURSOR_API_KEY",
+    "cwd": ".",
+    "timeout": 3600,
+    "supports_stream": true,
+    "supports_tool_calling": true,
+    "allowed_tool_names": [
+      "fetch_more",
+      "list_documents",
+      "get_document_sections",
+      "read_section",
+      "search_document",
+      "list_tables",
+      "get_table",
+      "get_page_content",
+      "get_financial_statement",
+      "query_xbrl_facts"
+    ],
+    "required_tool_names_any": [
+      "list_documents"
+    ],
+    "max_context_tokens": 1048576,
+    "description": "Cursor SDK 模型 - 使用 CURSOR_API_KEY 调用 Cursor local Agent，仅暴露 Dayu 本地财报读取工具，并要求先触达本地文档目录",
+    "runtime_hints": {
+      "temperature_profiles": {
+        "write": {
+          "temperature": 0.8
+        },
+        "overview": {
+          "temperature": 0.3
+        },
+        "audit": {
+          "temperature": 0.4
+        },
+        "decision": {
+          "temperature": 0.6
+        },
+        "interactive": {
+          "temperature": 0.8
+        },
+        "prompt": {
+          "temperature": 0.8
+        },
+        "infer": {
+          "temperature": 0.3
+        },
+        "conversation_compaction": {
+          "temperature": 0.3
+        }
+      }
+    }
+  },
   "ollama": {
     "runner_type": "openai_compatible",
     "name": "ollama",

@@ -14,6 +14,7 @@
   - 重点覆盖 `AsyncAgent`、Runner、ToolRegistry、PromptComposer、write pipeline
   - `tests/engine/test_log.py` 负责守住全局日志双流路由边界：`ERROR` 以下只写 stdout，`ERROR` 及以上只写 stderr，不能再把同一条失败日志同时打到两个流里造成 CLI 重复显示
   - `tests/engine/test_prompt_assets.py` 与 `tests/engine/test_prompt_composer.py` 共同守住 scene manifest 的当前默认模型边界：推理/交互类 scene 默认应对齐 `mimo-v2.5-pro-thinking-plan`，写作类 scene 默认应对齐 `mimo-v2.5-pro-plan`；若测试仍断言旧 `pro` 默认，会把真实 prompt 配置漂移误报成回归
+  - `tests/engine/test_async_cursor_sdk_runner.py` 负责守住 Cursor SDK Runner 的本地适配边界：测试必须 mock `cursor_sdk`，不访问真实 Cursor 服务，也不要求真实 `CURSOR_API_KEY`；同时覆盖 `custom_tools` 映射、Cursor `CustomToolContext` 对象适配、工具白名单、必需本地工具未调用时拒绝输出，以及标准 `tool_call_dispatched` / `tool_call_result` 事件映射
   - `tests/engine/test_write_pipeline.py` 还要守住 `scene_executor.py` 的共享重试边界：write/overview/infer/decision/fix/regenerate/raw prompt、confirm 和 repair 都必须复用同一套 LLM 执行失败重试语义；取消不得重试，解析失败只在 confirm/repair 这类声明了解析契约的路径重试，且最终错误消息必须保留各 scene 自身语义
   - `tests/engine/test_context_budget.py` 负责守住 `dayu.engine.context_budget` 的真源边界，包括 `ContextBudgetState`、工具结果预测性预算裁剪和相关 warning 语义
   - `tests/engine/test_web_tools.py` 负责守住 web search provider 回退、web tools 的请求头、内容编码、自刷新壳页跟随、challenge 检测、storage state 解析与浏览器回退边界
@@ -218,6 +219,7 @@ pip install -r requirements.txt
 - `test_cli_running_config.py` 和 `test_cli_interactive_coverage.py` 还要守住 CLI 模块拆分边界：`arg_parsing.py` 只放 argparse 参数定义和解析器构建，`dependency_setup.py` 只放数据类型定义、配置解析和 Service 构建，`commands/` 承担各子命令执行，`main.py` 只做命令分发。monkeypatch 路径必须指向被调用函数所在的实际模块命名空间（例如 `_build_fins_ops_service` 在 `dayu.cli.commands.fins` 被调用，patch 应指向 `dayu.cli.commands.fins._build_fins_ops_service`），不允许通过包级 re-export 或旧 `main.py` seam 绕行。
 - `test_wechat_main.py` 还要守住 WeChat 模块拆分边界：`arg_parsing.py` 只负责参数解析与上下文收口，`runtime.py` 只负责 WeChat 运行时装配与 service/runtime helper，`commands/` 承担 `login / run / service` 子命令执行，`main.py` 只做命令分发。monkeypatch 必须 patch 到真实被调用模块（例如 `_has_persisted_wechat_login` 在 `dayu.wechat.commands.service` 被调用时，应 patch `dayu.wechat.commands.service._has_persisted_wechat_login`，不能回退去 patch 旧 `main.py` seam 或其他转发层）。
 - `test_entrypoints.py` 还要守住 CLI / WeChat 的冷启动边界：导入 `dayu.cli.main` 时不得抢先导入 `dayu.cli.commands.*`、`dependency_setup` 这类重运行时模块，导入 `dayu.wechat.main` 时也不得提前拉起 `dayu.wechat.daemon`；`--help` 与 `dayu-cli init` 这类薄入口必须继续保持“主入口只分发、命令模块按需导入”的结构。
+- `tests/cli/test_main.py` 负责守住 `python -m dayu.cli.main` 入口和所有既有 CLI 子命令的 `--help` 可用性；若单测需要 fake 某个命令模块，只能用局部 `patch.dict(sys.modules, ...)`，不能污染真实 CLI 子进程或依赖包级 re-export。
 - `test_chat_service.py` 这类 Service/Host 边界测试里，如果断言必须观察 Host 内部 stub（如 `_executor`、`_run_registry`、`_pending_turn_store`），应先通过测试 helper 把 `ConversationalExecutionGatewayProtocol` 显式收窄到测试用具体 `Host` / stub 类型；不要把私有属性访问直接散落在测试正文里。
 - `tests/application/conftest.py` 这类共享夹具文件必须直接跟随 `HostExecutorProtocol` / `SessionRegistryProtocol` 演进；像 `StubHostExecutor.run_operation_stream/run_operation_sync` 这类泛型返回签名、以及 `StubSessionRegistry.close_idle_sessions()` 这类新协议方法，应优先在共享夹具真源补齐，而不是在每个下游测试里重复 `cast` 或 `type: ignore`。
 - 项目级 `tests/conftest.py` 这类 import 兼容夹具若需要预加载模块，也要先显式断言 `ModuleSpec/loader` 非空，再在 `ModuleType` 边界集中 `cast(Any, module)` 后补动态别名；不要把 `spec.loader` 的可空分支或动态属性赋值散落到正文。

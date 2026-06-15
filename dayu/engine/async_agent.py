@@ -49,6 +49,7 @@ from .events import (
     StreamEvent,
     error_event,
     final_answer_event,
+    is_runner_internal_tool_event,
     iteration_start_event,
     warning_event,
 )
@@ -796,33 +797,35 @@ class AsyncAgent:
                         )
                         continue
                     tool_call_id = raw_tool_call_id
-                    tool_calls_data.setdefault(tool_call_id, {})["id"] = tool_call_id
-                    tool_calls_data[tool_call_id]["name"] = event.data.get("name", "")
-                    tool_calls_data[tool_call_id]["arguments"] = event.data.get("arguments", {})
-                    tool_calls_data[tool_call_id]["index_in_iteration"] = event.data.get("index_in_iteration", 0)
-                    tool_calls_data[tool_call_id]["result"] = event.data.get("result")
-                    tc_extra = event.data.get("extra_content")
-                    if tc_extra is not None:
-                        tool_calls_data[tool_call_id]["extra_content"] = tc_extra
-                    tool_name = tool_calls_data[tool_call_id]["name"]
-                    tool_args = tool_calls_data[tool_call_id]["arguments"]
-                    result = tool_calls_data[tool_call_id].get("result", {})
-                    dup_call_spec: DupCallSpec | None = (
-                        cast(DupCallSpec | None, self.tool_executor.get_dup_call_spec(tool_name))
-                        if self.tool_executor is not None
-                        else None
-                    )
-                    duplicate_decision = duplicate_call_guard.evaluate(
-                        tool_name=tool_name,
-                        arguments=tool_args,
-                        result=result,
-                        spec=dup_call_spec,
-                    )
-                    if duplicate_decision.emit_hint and early_exit_reason is None:
-                        duplicate_hint_tool_name = duplicate_decision.hint_tool_name or tool_name
-                    if duplicate_decision.hard_stop and early_exit_reason is None:
-                        early_exit_reason = duplicate_decision.reason
-                        early_exit_error_type = "tool_call_duplicate"
+                    is_runner_internal_tool = is_runner_internal_tool_event(event)
+                    if not is_runner_internal_tool:
+                        tool_calls_data.setdefault(tool_call_id, {})["id"] = tool_call_id
+                        tool_calls_data[tool_call_id]["name"] = event.data.get("name", "")
+                        tool_calls_data[tool_call_id]["arguments"] = event.data.get("arguments", {})
+                        tool_calls_data[tool_call_id]["index_in_iteration"] = event.data.get("index_in_iteration", 0)
+                        tool_calls_data[tool_call_id]["result"] = event.data.get("result")
+                        tc_extra = event.data.get("extra_content")
+                        if tc_extra is not None:
+                            tool_calls_data[tool_call_id]["extra_content"] = tc_extra
+                        tool_name = tool_calls_data[tool_call_id]["name"]
+                        tool_args = tool_calls_data[tool_call_id]["arguments"]
+                        result = tool_calls_data[tool_call_id].get("result", {})
+                        dup_call_spec: DupCallSpec | None = (
+                            cast(DupCallSpec | None, self.tool_executor.get_dup_call_spec(tool_name))
+                            if self.tool_executor is not None
+                            else None
+                        )
+                        duplicate_decision = duplicate_call_guard.evaluate(
+                            tool_name=tool_name,
+                            arguments=tool_args,
+                            result=result,
+                            spec=dup_call_spec,
+                        )
+                        if duplicate_decision.emit_hint and early_exit_reason is None:
+                            duplicate_hint_tool_name = duplicate_decision.hint_tool_name or tool_name
+                        if duplicate_decision.hard_stop and early_exit_reason is None:
+                            early_exit_reason = duplicate_decision.reason
+                            early_exit_error_type = "tool_call_duplicate"
 
                     if trace_recorder is not None:
                         trace_recorder.on_tool_result(iteration_id=iteration_id, payload=event.data)

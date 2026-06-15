@@ -9,7 +9,7 @@ import pytest
 
 from dayu.contracts.agent_execution import AgentCreateArgs
 from dayu.contracts.agent_types import AgentTraceIdentity
-from dayu.contracts.model_config import OpenAICompatibleRunnerParams, RunnerType
+from dayu.contracts.model_config import CursorSdkRunnerParams, OpenAICompatibleRunnerParams, RunnerType
 from dayu.contracts.toolset_config import ToolsetConfigSnapshot
 from dayu.execution.options import ConversationMemorySettings, ResolvedExecutionOptions, TraceSettings
 from dayu.execution.runtime_config import AgentRuntimeConfig, OpenAIRunnerRuntimeConfig
@@ -83,6 +83,52 @@ def test_build_agent_create_args_maps_execution_options_to_openai_runner_params(
     assert runner_params.get("model") == "provider-model"
     assert runner_params.get("name") == "configured-name"
     assert runner_params.get("default_extra_payloads") == {"reasoning": True}
+
+
+@pytest.mark.unit
+def test_build_agent_create_args_maps_cursor_sdk_runner_params() -> None:
+    """Cursor SDK 模型配置应映射为独立 runner 参数。"""
+
+    resolved = ResolvedExecutionOptions(
+        model_name="cursor-auto",
+        runner_running_config=OpenAIRunnerRuntimeConfig(tool_timeout_seconds=12.0),
+        agent_running_config=AgentRuntimeConfig(max_iterations=7),
+        trace_settings=TraceSettings(enabled=False, output_dir=Path("/tmp/trace")),
+        temperature=0.8,
+        conversation_memory_settings=ConversationMemorySettings(),
+        toolset_configs=(ToolsetConfigSnapshot("fins", payload={}),),
+    )
+    model_config = cast(
+        dict[str, object],
+        {
+            "runner_type": RunnerType.CURSOR_SDK,
+            "model": "composer-2.5",
+            "api_key_env": "CURSOR_API_KEY",
+            "cwd": ".",
+            "timeout": 30,
+            "name": "cursor-auto",
+            "max_context_tokens": 200000,
+            "allowed_tool_names": ["list_documents", "read_section"],
+            "required_tool_names_any": ["list_documents"],
+        },
+    )
+
+    created = module.build_agent_create_args(
+        resolved_execution_options=resolved,
+        model_config=cast(Any, model_config),
+    )
+
+    assert created.runner_type == RunnerType.CURSOR_SDK.value
+    assert created.model_name == "cursor-auto"
+    assert created.max_turns == 7
+    assert created.max_context_tokens == 200000
+    runner_params = cast(CursorSdkRunnerParams, created.runner_params)
+    assert runner_params.get("model") == "composer-2.5"
+    assert runner_params.get("api_key_env") == "CURSOR_API_KEY"
+    assert runner_params.get("cwd") == "."
+    assert runner_params.get("timeout") == 30
+    assert runner_params.get("allowed_tool_names") == ["list_documents", "read_section"]
+    assert runner_params.get("required_tool_names_any") == ["list_documents"]
 
 
 @pytest.mark.unit

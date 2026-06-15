@@ -109,6 +109,7 @@ class AsyncRunner(Protocol):
 
 当前默认实现：
 - `AsyncOpenAIRunner`
+- `AsyncCursorSdkRunner`
 
 `AsyncOpenAIRunner` 当前稳定行为补充：
 - `AsyncRunner.close()` 已成为稳定生命周期契约：Runner 如果持有 HTTP session、子进程句柄或其它异步资源，必须通过该入口显式收口；`AsyncAgent` 会在单次 `run/run_messages/run_and_wait` 生命周期结束时统一调用它
@@ -117,6 +118,12 @@ class AsyncRunner(Protocol):
 - 取消一旦命中，上层看到的稳定事实是抛出 `dayu.contracts.cancellation.CancelledError`；不能把这类路径降级成 `error_event`、普通超时重试或吞掉后继续产出 `final_answer`
 - Runner 为取消观察临时注册到 `CancellationToken` 的回调必须在本轮调用结束后注销；复用同一 token 的多轮调用不允许累积历史 loop/future 闭包
 - `await_or_cancel` 在等待业务 awaitable 时，对内层抛出的 `RuntimeError` 走双门控收口：仅当 `cancellation_token` 已取消，且错误文本严格匹配 `"cannot schedule new futures after shutdown"` 时（双 Ctrl-C 后 asyncio 默认 executor shutdown，DNS `getaddrinfo` 等路径仍 `executor.submit` 撞上的固定异常），才将其映射成 `CancelledError` 并以单行 warn 收口；其余情形原样上抛，禁止误吞业务异常
+
+`AsyncCursorSdkRunner` 当前稳定行为补充：
+- Cursor Agent 自带内部工具循环，Runner 通过 SDK `local.custom_tools` 把当前 `ToolExecutor` 暴露给 Cursor local Agent，不把 Cursor 内部工具调用再转成外层 `AsyncAgent` 的 OpenAI-style tool batch
+- Cursor custom tool 执行时会产出标准 `tool_call_dispatched` / `tool_call_result` 事件，并带 `tool_loop_owner=runner` 与 `cursor_custom_tool=true` metadata；`AsyncAgent` 对这些事件只做 trace/UI 透传，不写入外层 `tool_calls_data`
+- Cursor custom tool 的 `context` 在 Python SDK 中是 `CustomToolContext` 对象；Runner 只在 SDK 边界读取 `tool_call_id`，进入 Dayu 工具执行后仍使用强类型 `ToolExecutionContext`
+- Cursor 模型配置可通过 `allowed_tool_names` 限定可暴露工具，并通过 `required_tool_names_any` 要求至少实际执行其中一个 Dayu 工具；未满足时 Runner 以错误事件拒绝输出，避免模型脱离本地财报数据回答
 
 历史残留实现：
 - `AsyncCliRunner`：已禁用，仅保留源码以便迁移旧实现，不允许再通过配置或 Host 主链路使用；已从 `dayu.engine` 包级公共导出移除，测试等内部使用方须通过 `dayu.engine.async_cli_runner` 直接导入
@@ -300,7 +307,24 @@ Engine 自己不做 run registry，也不做跨进程取消桥接。
 - 请求意图自适应解析：统一委托 `dayu.engine.reasoning_protocol` 完成 vendor 私有 reasoning 协议探测，按注册式承载多 provider 扩展（当前覆盖 Google `thinking_config.include_thoughts`），Runner 主路径只调用统一入口拿到 `tag_name`，并在非流式路径上经由 `xml_extractor.extract_full` 完成"剥离正文 + 合并 native reasoning_content"
 - 为单次 tool call 生成 linked `ToolExecutionContext`，并在 tool timeout / run cancel 时先触发 linked cancellation token
 
-### 8.2 AsyncCliRunner
+### 8.2 AsyncCursorSdkRunner
+
+定位：
+- Cursor Python SDK local runner
+
+负责：
+- 使用 `CURSOR_API_KEY` 创建 Cursor local Agent
+- 将当前 `ToolExecutor.get_schemas()` 映射为 Cursor SDK `local.customTools`
+- 让 Cursor 内部 agent loop 直接调用当前进程的 Dayu 工具执行器
+- 将 Cursor custom tool 的真实执行映射为标准 `tool_call_dispatched` / `tool_call_result` 事件
+- 将 Cursor 最终文本收敛为 Dayu `content_complete` / `done` 事件
+
+约束：
+- 不向外层 `AsyncAgent` 发送 OpenAI-style `tool_calls_batch_done`；Cursor 内部已经完成工具闭环，外层只接收最终回答、标准工具事件和 metadata 观测
+- 标准工具事件必须带 runner 内部 loop 标记，外层 `AsyncAgent` 不得据此再次回填工具消息
+- 只有显式选择 `runner_type=cursor_sdk` 的模型才会导入 `cursor_sdk` 包；旧 `openai_compatible` 路径不依赖 Cursor SDK
+
+### 8.3 AsyncCliRunner
 
 定位：
 - 外部 CLI runner，当前主要服务 Codex CLI 一类本地命令行模型

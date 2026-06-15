@@ -79,3 +79,7 @@ def main() -> int:
         # signal handler 注册之前抛出的 KeyboardInterrupt 边缘场景，
         # 以及 interactive 之外仍可能逃逸到 main 的 KeyboardInterrupt。
         return EXIT_CODE_SIGINT
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
